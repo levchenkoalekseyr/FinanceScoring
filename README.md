@@ -42,5 +42,7 @@
 
 <img width="1213" height="628" alt="image" src="https://github.com/user-attachments/assets/5d7df1b9-f941-4fd7-a53a-b956e1c6a6a1" />
 
+Корреляция может путать модель, но по нашей матрице видно, что корреирующих признако не много.
 
- 
+<img width="1489" height="6124" alt="image" src="https://github.com/user-attachments/assets/12d96689-e4c1-459c-8f59-2779f470655d" />
+
