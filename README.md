@@ -40,6 +40,9 @@
 После создания новых признаков необходимо проверить на взаимосвязь признаков.
 Дя этого можно построить матрицу корреляции
 
+<img width="846" height="622" alt="image" src="https://github.com/user-attachments/assets/fa118252-228f-4e6e-bdbf-c25283348401" />
+
+
 Корреляция может путать модель, но по нашей матрице видно, что корреирующих признако не много.
 
 <img width="1489" height="7653" alt="image" src="https://github.com/user-attachments/assets/868dffcd-3ef2-4249-9e52-336f4f1286f5" />
