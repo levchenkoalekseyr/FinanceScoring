@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[15]:
-
-
 # Импорт необходимых модулей
 
 import numpy as np
@@ -20,7 +14,7 @@ import warnings
 import joblib
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.base import clone  # ← Добавить в начало файла
+from sklearn.base import clone
 from sklearn.preprocessing import MinMaxScaler
 import catboost
 from catboost import CatBoostClassifier
@@ -29,60 +23,47 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
 warnings.filterwarnings('ignore')
 
-
-# In[16]:
-
-
 #загрузка данных
-
 bureau = pd.read_csv("bureau.csv")
 previous_loans = pd.read_csv("previous_loans.csv")
 test = pd.read_csv("test.csv")
 train = pd.read_csv("train.csv")
 transactions = pd.read_csv("transactions.csv")
 
-#просмотр размеров файлов
+# просмотр размеров файлов и основных колонок в файлах, чтоб понимать с чм имеем дело, какие признаки есть
 print(f"Train: {train.shape}")
 print(f"Test: {test.shape}")
 print(f"Bureau: {bureau.shape}")
 print(f"Transactions: {transactions.shape}")
 print(f"Previous Loans: {previous_loans.shape}")
 
-
-# In[17]:
-
-
 #обработка первого файла bureau
-
 # Удаление дубликатов. 
 #Хотя возможно это и ошибка, т.к. один клиент может брать два одинаковых кредита, с другой стороны будет разная дата
 bureau = bureau.drop_duplicates(keep='first')
 
 # Заполнение пропусков в категориальных колонках
+# в категориальных лучше всего заполнить значением "Неизвестно"
 bureau['account_type'] = bureau['account_type'].fillna('unknown')
 bureau['bureau_status'] = bureau['bureau_status'].fillna('unknown')
 
 # Заполнение пропусков в числовых колонках
+# В эти столбцах подход, что если нет данных у банка, то скорее всего не было и задолженности и нет денег на счете
 bureau['max_dpd_last_12m'] = bureau['max_dpd_last_12m'].fillna(0)
 bureau['current_balance'] = bureau['current_balance'].fillna(0)
 
-# Заполнение opened_days_ago по группам медианой
+# Информацию о сроке открытия счета заполняем медианой по группам
 medians = bureau.groupby('account_type')['opened_days_ago'].median()
 bureau['opened_days_ago'] = bureau['opened_days_ago'].fillna(bureau['account_type'].map(medians))
 bureau['opened_days_ago'] = bureau['opened_days_ago'].fillna(bureau['opened_days_ago'].median())
 
 # Заполнение credit_limit по группам медиано
-#print("\nЗаполнение credit_limit...")
 medians = bureau.groupby('account_type')['credit_limit'].median()
 bureau['credit_limit'] = bureau['credit_limit'].fillna(bureau['account_type'].map(medians))
 bureau['credit_limit'] = bureau['credit_limit'].fillna(bureau['credit_limit'].median())
 
 
-# In[18]:
-
-
 # обработка файла previous_loans
-
 # Удаление дубликатов
 previous_loans = previous_loans.drop_duplicates(keep='first')
 
@@ -90,19 +71,12 @@ previous_loans = previous_loans.drop_duplicates(keep='first')
 previous_loans['was_overdue'] = previous_loans['was_overdue'].fillna(0) #заполнение нулевым значением
 previous_loans['max_overdue_days'] = previous_loans['max_overdue_days'].fillna(0) #заполнение нулевым значением
 
-
 for col in ['previous_amount', 'previous_term_months', 'closed_days_ago']:
     previous_loans[col] = previous_loans[col].fillna(previous_loans[col].median()) #заполненение медианой
 
-
-# In[19]:
-
-
 # обработка файла transactions
-
 #приведение к типу даты и времени
 transactions['transaction_date'] = pd.to_datetime(transactions['transaction_date'])
-
 
 if transactions['amount'].isnull().sum() > 0:
     transactions['amount'] = transactions['amount'].fillna(transactions['amount'].median()) #заполненение медианой
@@ -111,16 +85,8 @@ if transactions['amount'].isnull().sum() > 0:
 if 'transaction_category' in transactions.columns:
     transactions['transaction_category'] = transactions['transaction_category'].fillna('unknown') 
 
-
-# In[20]:
-
-
-#наодного клиента может быть разное число записей, поэтому нужна группировка
+#на одного клиента может быть разное число записей, поэтому нужна группировка
 #плюс добавим новые признакие, из текущих (среднее, максимум, минимум)
-
-
-# In[21]:
-
 
 # bureau
 general = bureau.groupby('client_id').agg({
@@ -151,12 +117,7 @@ type_counts.columns = ['client_id'] + [f'count_{col}' for col in type_counts.col
 bureau_grouped = general.merge(type_counts, on='client_id', how='left')
 bureau_grouped = bureau_grouped.fillna(0)
 
-
-# In[22]:
-
-
 # previous loans
-
 prev_loans_grouped = previous_loans.groupby('client_id').agg({
     'previous_loan_id': 'count',
     'previous_amount': ['sum', 'mean', 'max'],
@@ -180,12 +141,7 @@ prev_loans_grouped['prev_overdue_rate'] = prev_loans_grouped['prev_overdue_count
         prev_loans_grouped['prev_loans_count'] + 1)
 prev_loans_grouped['prev_has_overdue'] = (prev_loans_grouped['prev_overdue_count'] > 0).astype(int)
 
-
-# In[23]:
-
-
 # группировка TRANSACTIONS
-
 grouped = transactions.groupby('client_id').agg({
     'amount': ['count', 'sum', 'mean', 'max', 'min', 'std'],
     'transaction_date': ['min', 'max']
@@ -195,8 +151,7 @@ grouped.columns = [
     'client_id',
     'transactions_count',
     'amount_sum', 'amount_mean', 'amount_max', 'amount_min', 'amount_std',
-    'first_transaction', 'last_transaction'
-]
+    'first_transaction', 'last_transaction']
 
 grouped['transactions_span_days'] = (grouped['last_transaction'] - grouped['first_transaction']).dt.days
 grouped['transactions_per_day'] = grouped['transactions_count'] / (grouped['transactions_span_days'] + 1)
@@ -205,11 +160,7 @@ transactions_grouped = grouped.drop(['first_transaction', 'last_transaction'], a
 transactions_grouped = transactions_grouped.fillna(0)
 
 
-# In[24]:
-
-
 # объединениие всех данных после групировки
-
 merged = bureau_grouped.merge(transactions_grouped, on='client_id', how='outer')
 merged = merged.merge(prev_loans_grouped, on='client_id', how='outer')
 merged = merged.fillna(0)
@@ -225,15 +176,7 @@ test_merged = test_merged.merge(prev_loans_grouped, on='client_id', how='left')
 test_merged = test_merged.fillna(0)
 
 
-# In[ ]:
-
-
-
-
-
-# In[25]:
-
-
+# После обработки пропусков и объединения всех данных построим матрицу корреляции и проверим зависимость между признаками
 # матрица корреляции
 
 train_test = pd.concat([X_train, X_test], axis=0, ignore_index=True)
@@ -247,9 +190,6 @@ sns.heatmap(corr, mask=mask, cmap=cmap, annot=True)
 plt.show()
 
 
-# In[281]:
-
-
 # подготовка данных для модели (отделение результата и удаление лишних колонок, не влияющих на результат)
 drop_cols = ['client_id', 'application_id']
 
@@ -257,14 +197,7 @@ X_train = train_merged.drop(columns=drop_cols + ['target'])
 y_train = train_merged['target']
 X_test = test_merged.drop(columns=drop_cols)
 
-print(X_train.columns)
-
-
-# In[282]:
-
-
-# повышаем значение при увеличении уровня
-
+# категориаьный столбец с образованием можно заменить на числовой с повышением при изменении уровня образования
 education_mapping = {
     'school': 0.25,
     'college': 0.5,
@@ -279,14 +212,7 @@ education_mapping = {
 X_train['education'] = X_train['education'].map(education_mapping).fillna(0).astype(int)
 X_test['education'] = X_test['education'].map(education_mapping).fillna(0).astype(int)
 
-print(X_train.columns)
-
-
-# In[283]:
-
-
-# имеет значение трудоустроен или нет
-
+# трудоустроен или нет меняем на чисовой, т.к. нет данных какое устройство лучше, меняем на 0 и 1
 employment_map = {
     'unemployed': 1,
     'self_employed': 1,
@@ -301,11 +227,7 @@ employment_map = {
 X_train['employment_type'] = X_train['employment_type'].map(employment_map).fillna(0).astype(int)
 X_test['employment_type'] = X_test['employment_type'].map(employment_map).fillna(0).astype(int)
 
-
-# In[284]:
-
-
-#опыт работы чаще всего делят на "до года", 'от 1 до 3', 'более 3'
+#опыт работы чаще всего делят на "до года", 'от 1 до 3', 'более 3', заменяем соответствующим образом 
 
 def categorize_months(months):
     if months < 12:
@@ -318,12 +240,6 @@ def categorize_months(months):
 X_train['months_at_job'] = X_train['months_at_job'].apply(categorize_months)
 X_test['months_at_job'] = X_test['months_at_job'].apply(categorize_months)
 
-print(X_train.columns)
-
-
-# In[285]:
-
-
 # считаем, что много счетов также плохо как и мало, среднее значение хорошо
 
 def num_accounts(num):
@@ -335,21 +251,13 @@ def num_accounts(num):
 X_train['num_accounts'] = X_train['num_accounts'].apply(num_accounts)
 X_test['num_accounts'] = X_test['num_accounts'].apply(num_accounts)
 
-
-# In[286]:
-
-
 # приводим к интервалу 0-1
 
 X_train['dependents'] = X_train['dependents']/X_train['dependents'].max()
 X_test['dependents'] = X_test['dependents']/X_test['dependents'].max()
 
-
-# In[287]:
-
-
-# requested_product считаем, что кредиты разные по сложности
-
+# requested_product считаем, что кредиты разные по сложности. 
+#Это логично, т.к. например для ипотеки гораздо большие требования, чем для потребительского займа
 requested_product = {
     'refinance': 0.2,
     'cash': 0.8,
@@ -364,12 +272,8 @@ requested_product = {
 X_train['requested_product'] = X_train['requested_product'].map(requested_product).fillna(0)
 X_test['requested_product'] = X_test['requested_product'].map(requested_product).fillna(0)
 
-
-# In[288]:
-
-
-print(X_train['channel'].unique())
-print(X_test['channel'].unique())
+# Этот столбец показывает как клиент обратился за займом.
+# Считаем, что личное обращение надежнее, а партнер банка еще надежнее
 
 channel = {
     'partner': 1,
@@ -386,63 +290,25 @@ channel = {
 X_train['channel'] = X_train['channel'].map(channel).fillna(0)
 X_test['channel'] = X_test['channel'].map(channel).fillna(0)
 
-print(X_train['channel'].unique())
-print(X_test['channel'].unique())
-
-
-# In[289]:
-
-
 X_train_encoded = X_train.copy()
 X_test_encoded = X_test.copy()
 
-
-# In[ ]:
-
-
-
-
-
-# In[291]:
-
-
-# 1. Удаляем все не-числовые колонки
-print(non_numeric_train)
-print(non_numeric_test)
-
+# Проверка на нечисловые колонки, удаление
 non_numeric_train = X_train_encoded.select_dtypes(exclude=['number']).columns.tolist()
 non_numeric_test = X_test_encoded.select_dtypes(exclude=['number']).columns.tolist()
 
-print(non_numeric_train)
-print(non_numeric_test)
-
 all_non_numeric = set(non_numeric_train) | set(non_numeric_test)
 if all_non_numeric:
-    print(f"Удаляем не-числовые колонки: {list(all_non_numeric)}")
     X_train_encoded = X_train_encoded.drop(columns=list(all_non_numeric), errors='ignore')
     X_test_encoded = X_test_encoded.drop(columns=list(all_non_numeric), errors='ignore')
 
-# 2. Выравниваем колонки (ОБЯЗАТЕЛЬНЫЙ ШАГ!)
+# 2. Выравниваем колонки
 X_train_encoded, X_test_encoded = X_train_encoded.align(
     X_test_encoded, 
     join='inner',      # оставляем только ОБЩИЕ колонки
     axis=1, 
     fill_value=0
 )
-
-
-# In[ ]:
-
-
-
-
-
-# In[292]:
-
-
-#X_train_encoded_new = X_train_encoded.columns[X_train_encoded.columns.duplicated()]
-# Проверяем дубликаты в test
-#X_test_encoded_new = X_test_encoded.columns[X_test_encoded.columns.duplicated()]
 
 # стандартизация
 # Обучаем скейлер (находим min и max) на ОБЪЕДИНЕННЫХ данных!
@@ -456,16 +322,6 @@ X_test_encoded_Scaler = scaler.transform(X_test_encoded)
 
 X_train_encoded = pd.DataFrame(X_train_encoded_Scaler, columns=X_train_encoded.columns)
 X_test_encoded = pd.DataFrame(X_test_encoded_Scaler, columns=X_test_encoded.columns)
-
-
-# In[ ]:
-
-
-
-
-
-# In[293]:
-
 
 # удаление признаков (это поле использовалось для просмотра влияния признаков на результат путем их удаления или добавления)
 
@@ -499,20 +355,9 @@ drop_columns = [
 X_train_encoded = X_train_encoded.drop(columns=drop_columns, errors='ignore')
 X_test_encoded = X_test_encoded.drop(columns=drop_columns, errors='ignore')
 
-
-# In[294]:
-
-
 # просмотр обработаных данных
-
 X_train_encoded.to_csv('X_train_encoded.csv', index=False)
 X_test_encoded.to_csv('X_test_encoded.csv', index=False)
-print(X_train_encoded.columns)
-print(X_test_encoded.head())
-
-
-# In[295]:
-
 
 # ПРОСТРОЕНИЕ ГРАФИКОВ
 #Смотрим результат стандартизации, проверяем выбросы и корреляцию признаков финальной модели
@@ -631,31 +476,13 @@ def plot_column_distributions(df, cols_per_row=3, figsize=(15, 4)):
     plt.tight_layout()
     plt.show()
 
-
-print("\nГрафики для X_TRAIN_ENCODED:")
 plot_column_distributions(X_train_encoded, cols_per_row=3, figsize=(15, 4))
-
-print("\nГрафики для X_TEST_ENCODED:")
 plot_column_distributions(X_test_encoded, cols_per_row=3, figsize=(15, 4))
-
-# ИЛИ если хотите boxplot
-print("\nBoxplot для X_TRAIN_ENCODED:")
 plot_boxplots_with_stats(X_train_encoded)
-
-# 3. Для X_train_encoded
-print("\nГрафики для X_TRAIN_ENCODED:")
 plot_boxplots_with_stats(X_train_encoded)
-
-# 4. Для X_test_encoded
-print("\nГрафики для X_TEST_ENCODED:")
 plot_boxplots_with_stats(X_test_encoded)
 
-
-# In[317]:
-
-
 #пробовал сделать как по одной модели, так и ансамбль с кросс валидацией
-
 scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
 
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -667,10 +494,6 @@ cv_results = {
     'RandomForest': [],
     'CatBoost': []
 }
-
-
-# In[323]:
-
 
 # Параметры для каждой модели
 xgb_params = {
@@ -698,10 +521,6 @@ xgb_params = {
     #'sampling_method': 'gradient_based',     # улучшенный метод сэмплинга
     'max_leaves': 31,                        # максимальное количество листьев
 }
-
-
-# In[324]:
-
 
 lgb_params = {
     'objective': 'binary',
@@ -736,10 +555,6 @@ lgb_params = {
     'min_data_in_bin': 3,
 }
 
-
-# In[328]:
-
-
 rf_params = {
     'n_estimators': 500,
     'max_depth': 10,
@@ -750,8 +565,7 @@ rf_params = {
     'random_state': 42,
     'n_jobs': -1,
     
-    # ДОПОЛНИТЕЛЬНЫЕ РЕКОМЕНДУЕМЫЕ ПАРАМЕТРЫ
-    'criterion': 'gini',                    # или 'entropy' (обычно gini лучше)
+    'criterion': 'gini',                   
     'max_leaf_nodes': None,                 # ограничение на количество листьев
     'min_impurity_decrease': 0.0,           # минимальное уменьшение нечистоты
     'min_weight_fraction_leaf': 0.0,        # минимальная доля веса в листе
@@ -759,10 +573,6 @@ rf_params = {
     'ccp_alpha': 0.0,                       # минимальное сокращение сложности
     'warm_start': False,                    # продолжать обучение с предыдущего состояния
 }
-
-
-# In[329]:
-
 
 cat_params = {
     # Основные
@@ -775,9 +585,7 @@ cat_params = {
     
     # Балансировка классов
     'auto_class_weights': 'Balanced',
-    # или, если у вас есть scale_pos_weight:
-    # 'class_weights': [1.0, scale_pos_weight],
-    
+
     # Early stopping
     'early_stopping_rounds': 50,
     'od_type': 'Iter',
@@ -804,9 +612,6 @@ cat_params = {
     'verbose': False,
     #'logging_level': 'Silent'
 }
-
-
-# In[332]:
 
 
 for fold, (train_idx, val_idx) in enumerate(skf.split(X_train_encoded, y_train)):
@@ -856,11 +661,6 @@ for model, scores in cv_results.items():
     if len(scores) > 0 and np.mean(scores) > 0:
         cv_means[model] = np.mean(scores)
         cv_stds[model] = np.std(scores)
-    
-
-
-# In[333]:
-
 
 # определение весов
 
@@ -870,20 +670,12 @@ weights = {model: score / total for model, score in cv_means.items()}
 for model, weight in weights.items():
     print(f"  {model}: {weight:.3f}")
 
-
-# In[334]:
-
-
 # обучение
 
 # Разделяем данные для early stopping
 X_train_sub, X_val, y_train_sub, y_val = train_test_split(
     X_train_encoded, y_train, test_size=0.2, random_state=42, stratify=y_train
 )
-
-
-# In[335]:
-
 
 # XGBoost
 
@@ -911,10 +703,6 @@ xgb.fit(
     X_train_sub, y_train_sub,
     eval_set=[(X_val, y_val)],
     verbose=False)
-
-
-# In[336]:
-
 
 # LightGBM
 
@@ -946,10 +734,6 @@ lgb.fit(
     callbacks=[lgbm.early_stopping(50)]
 )
 
-
-# In[337]:
-
-
 # 3. Random Forest
 rf = RandomForestClassifier(
     n_estimators=500, 
@@ -962,10 +746,6 @@ rf = RandomForestClassifier(
     n_jobs=-1
 )
 rf.fit(X_train_encoded, y_train)
-
-
-# In[338]:
-
 
 cat = CatBoostClassifier(
     iterations=1000,
@@ -983,9 +763,6 @@ cat.fit(
     eval_set=[(X_val, y_val)],
     verbose=False
 )
-
-
-# In[339]:
 
 
 #пробовал стекинг
@@ -1015,9 +792,6 @@ rf_oof_train, rf_oof_test = get_oof_predictions(rf, X_train_encoded, y_train, X_
 cat_oof_train, cat_oof_test = get_oof_predictions(cat, X_train_encoded, y_train, X_test_encoded)
 
 
-# In[340]:
-
-
 # Обучение
 X_meta_train = np.column_stack([xgb_oof_train, lgb_oof_train, rf_oof_train, cat_oof_train])
 meta_model = LogisticRegression(class_weight='balanced', max_iter=1000)
@@ -1026,9 +800,6 @@ meta_model.fit(X_meta_train, y_train)
 # Результат
 X_meta_test = np.column_stack([xgb_oof_test, lgb_oof_test, rf_oof_test, cat_oof_test])
 ensemble_preds = meta_model.predict_proba(X_meta_test)[:, 1]
-
-
-# In[341]:
 
 
 #создание фала с ответом
@@ -1042,9 +813,6 @@ submission.to_csv('submission.csv', index=False)
 X_train_encoded.to_csv('X_train_encoded.csv', index=False)
 
 
-# In[342]:
-
-
 #оценка результата
 
 cv_scores = cross_val_score(meta_model, X_meta_train, y_train, cv=5, scoring='roc_auc')
@@ -1056,21 +824,6 @@ print(f"Train AUC: {train_auc:.4f}")
 # результат хороший 0.98 Может гдето есть переобучение
 # Пробовал по матрице корреляции добалять новый признак и удалять все из которых он состоит, но это тоже улучшения не дало
 # Лучший результат в ансамбле появляется при добавлении catboost, но он отдельно все равно не лучше ансамбля.
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
 
 
 
