@@ -1,10 +1,21 @@
-# FinanceScoring
+# Finance Scoring
 Составление рекомендации о выдаче или отказе в займе
 
 ## Один из вариантов решения классической задачи кредитного скоринга.
 Дано:
 
 Три файла с данными
-Первый файл bureau.csv содержит 
-client_id,bureau_account_id,account_type,opened_days_ago,credit_limit,current_balance,max_dpd_last_12m,bureau_status
+
+Первый файл bureau.csv 
+Содержит данные о клиенте. 
+Тип аккаунта киента (вид займа, который ранее клиенту предоставлялся).
+Какое время назад клиент пользовался услугами банка.
+Текущий лимит клиента на карте
+Максимальный баланс на счете за последние 12 месяцев
+У каждого клиента свой id в базе, значит можно сделать вывод, что каждая строка уникальная для каждого клиента
+
+Второй файл previous_loans.csv
+Содержит 
+client_id,previous_loan_id,previous_amount,previous_term_months,closed_days_ago,was_overdue,max_overdue_days
+
  
